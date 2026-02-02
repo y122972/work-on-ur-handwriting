@@ -127,7 +127,6 @@ export default function Home() {
   const [content, setContent] = useState(POEMS[0].content);
   const [activeTab, setActiveTab] = useState<'library' | 'input' | 'settings'>('library');
   const [searchQuery, setSearchQuery] = useState('');
-  const [fontsLoaded, setFontsLoaded] = useState(false);
   
   const [config, setConfig] = useState<CharBoxConfig>({
     size: 100,
@@ -145,9 +144,6 @@ export default function Home() {
   
   // Load Web Fonts - Fixed version with better fallback handling
   useEffect(() => {
-    // Set fonts as loaded immediately since we're using system fonts as fallback
-    setFontsLoaded(true);
-    
     // Try to load Google Fonts, but don't fail if they're blocked
     WEB_FONTS.forEach(font => {
       if (font.url) {
