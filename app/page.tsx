@@ -13,7 +13,11 @@ import {
   PenTool,
   Trash2,
   Wrench,
+  X,
+  Database,
 } from 'lucide-react';
+import { saveFont, getAllFonts, deleteFont, CachedFont } from './lib/fontStorage';
+import { saveConfig, loadConfig, PageConfig } from './lib/configStorage';
 
 // --- Default Data & Constants ---
 
@@ -126,23 +130,111 @@ const CharBox = ({ char, config }: { char: string; config: CharBoxConfig }) => {
 
 export default function Home() {
   // --- State ---
-  const [content, setContent] = useState(POEMS[0].content);
+  // Initialize content from localStorage
+  const [content, setContent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      return savedConfig?.content ?? POEMS[0].content;
+    }
+    return POEMS[0].content;
+  });
+  
   const [activeTab, setActiveTab] = useState<'library' | 'input' | 'settings'>('library');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [config, setConfig] = useState<CharBoxConfig>({
-    size: 100,
-    gridType: GRIDS.MI_ZI,
-    gridColor: '#ef4444', // red-500
-    fontFamily: WEB_FONTS[0].value, // Default to system KaiTi (always available)
-    textColor: '#000000',
-    textOpacity: 0.8, // 1 for black, 0.2 for tracing
+  // Initialize config from localStorage
+  const [config, setConfig] = useState<CharBoxConfig>(() => {
+    const defaults = {
+      size: 100,
+      gridType: GRIDS.MI_ZI,
+      gridColor: '#ef4444',
+      fontFamily: WEB_FONTS[0].value,
+      textColor: '#000000',
+      textOpacity: 0.8,
+    };
+    
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      if (savedConfig) {
+        return {
+          size: savedConfig.size ?? defaults.size,
+          gridType: savedConfig.gridType ?? defaults.gridType,
+          gridColor: savedConfig.gridColor ?? defaults.gridColor,
+          fontFamily: savedConfig.fontFamily ?? defaults.fontFamily,
+          textColor: savedConfig.textColor ?? defaults.textColor,
+          textOpacity: savedConfig.textOpacity ?? defaults.textOpacity,
+        };
+      }
+    }
+    return defaults;
   });
 
-  const [customFontName, setCustomFontName] = useState<string | null>(null);
+  const [customFontId, setCustomFontId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      return savedConfig?.customFontId ?? null;
+    }
+    return null;
+  });
+  
+  const [cachedFonts, setCachedFonts] = useState<CachedFont[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Effects ---
+  
+  // Load cached fonts from IndexedDB on mount
+  useEffect(() => {
+    const loadFonts = async () => {
+      try {
+        const fonts = await getAllFonts();
+        setCachedFonts(fonts);
+
+        // Load all fonts into the browser
+        for (const font of fonts) {
+          try {
+            // Create a Blob from ArrayBuffer and generate URL
+            const blob = new Blob([font.data], { type: 'font/ttf' });
+            const fontUrl = URL.createObjectURL(blob);
+            const fontFace = new FontFace(font.id, `url(${fontUrl})`);
+            await fontFace.load();
+            document.fonts.add(fontFace);
+            // Clean up the URL after loading
+            URL.revokeObjectURL(fontUrl);
+          } catch (err) {
+            console.error(`Failed to load cached font ${font.name}:`, err);
+          }
+        }
+
+        // Restore previously selected custom font
+        const savedConfig = loadConfig();
+        if (savedConfig?.customFontId) {
+          const selectedFont = fonts.find(f => f.id === savedConfig.customFontId);
+          if (selectedFont) {
+            setConfig(prev => ({ ...prev, fontFamily: selectedFont.id }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load cached fonts:', error);
+      }
+    };
+    
+    loadFonts();
+  }, []);
+
+  // Save configuration to localStorage whenever it changes
+  useEffect(() => {
+    const configToSave: PageConfig = {
+      content,
+      size: config.size,
+      gridType: config.gridType,
+      gridColor: config.gridColor,
+      fontFamily: config.fontFamily,
+      textColor: config.textColor,
+      textOpacity: config.textOpacity,
+      customFontId,
+    };
+    saveConfig(configToSave);
+  }, [content, config, customFontId]);
   
   // Load Web Fonts - Fixed version with better fallback handling
   useEffect(() => {
@@ -177,20 +269,57 @@ export default function Home() {
 
   // --- Handlers ---
 
+  // Helper function to reload cached fonts
+  const loadCachedFonts = async () => {
+    try {
+      const fonts = await getAllFonts();
+      setCachedFonts(fonts);
+
+      // Load all fonts into the browser
+      for (const font of fonts) {
+        try {
+          // Create a Blob from ArrayBuffer and generate URL
+          const blob = new Blob([font.data], { type: 'font/ttf' });
+          const fontUrl = URL.createObjectURL(blob);
+          const fontFace = new FontFace(font.id, `url(${fontUrl})`);
+          await fontFace.load();
+          document.fonts.add(fontFace);
+          // Clean up the URL after loading
+          URL.revokeObjectURL(fontUrl);
+        } catch (err) {
+          console.error(`Failed to load cached font ${font.name}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load cached fonts:', error);
+    }
+  };
+
   const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+      // Create a Blob from ArrayBuffer and generate URL
+      const blob = new Blob([arrayBuffer], { type: 'font/ttf' });
+      const fontUrl = URL.createObjectURL(blob);
       const fontName = `CustomFont_${Date.now()}`;
-      const fontFace = new FontFace(fontName, arrayBuffer);
+      const fontFace = new FontFace(fontName, `url(${fontUrl})`);
       
       await fontFace.load();
       document.fonts.add(fontFace);
+      // Clean up the URL after loading
+      URL.revokeObjectURL(fontUrl);
       
-      setCustomFontName(fontName);
-      setConfig(prev => ({ ...prev, fontFamily: fontName }));
+      // Save font to IndexedDB
+      const fontId = await saveFont(file.name, arrayBuffer);
+      
+      setCustomFontId(fontId);
+      setConfig(prev => ({ ...prev, fontFamily: fontId }));
+      
+      // Reload cached fonts list
+      await loadCachedFonts();
     } catch (err) {
       const userResponse = confirm(
         '字体加载失败，可能是字体文件损坏或格式不兼容。\n\n是否前往字体修复工具尝试修复？'
@@ -199,6 +328,24 @@ export default function Home() {
         window.location.href = '/repair';
       }
       console.error(err);
+    }
+  };
+
+  const handleDeleteFont = async (fontId: string) => {
+    try {
+      await deleteFont(fontId);
+      
+      // If the deleted font is currently selected, switch to default font
+      if (customFontId === fontId) {
+        setCustomFontId(null);
+        setConfig(prev => ({ ...prev, fontFamily: WEB_FONTS[0].value }));
+      }
+      
+      // Reload cached fonts list
+      await loadCachedFonts();
+    } catch (error) {
+      console.error('Failed to delete font:', error);
+      alert('删除字体失败');
     }
   };
 
@@ -329,13 +476,32 @@ export default function Home() {
             </label>
             <select
               value={config.fontFamily}
-              onChange={(e) => setConfig({ ...config, fontFamily: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setConfig({ ...config, fontFamily: value });
+                
+                // Update custom font tracking
+                const selectedCachedFont = cachedFonts.find(f => f.id === value);
+                if (selectedCachedFont) {
+                  setCustomFontId(selectedCachedFont.id);
+                } else {
+                  setCustomFontId(null);
+                }
+              }}
               className="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white"
             >
               {WEB_FONTS.map((font, idx) => (
                 <option key={idx} value={font.value}>{font.name}</option>
               ))}
-              {customFontName && <option value={customFontName}>本地上传字体</option>}
+              {cachedFonts.length > 0 && (
+                <optgroup label="本地缓存字体">
+                  {cachedFonts.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             
             <button
@@ -351,6 +517,41 @@ export default function Home() {
               accept=".ttf,.otf"
               className="hidden" 
             />
+            
+            {/* Cached Fonts Management */}
+            {cachedFonts.length > 0 && (
+              <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                    <Database className="w-3 h-3" />
+                    缓存字体 ({cachedFonts.length})
+                  </span>
+                </div>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {cachedFonts.map((font) => (
+                    <div
+                      key={font.id}
+                      className="flex items-center justify-between py-1 px-2 hover:bg-white rounded text-xs group"
+                    >
+                      <span className="text-slate-700 truncate flex-1" title={font.name}>
+                        {font.name}
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`确定要删除字体 "${font.name}" 吗？`)) {
+                            handleDeleteFont(font.id);
+                          }
+                        }}
+                        className="text-slate-400 hover:text-red-500 transition-colors ml-2"
+                        title="删除"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             <Link 
               href="/repair"
