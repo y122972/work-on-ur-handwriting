@@ -192,9 +192,14 @@ export default function Home() {
         // Load all fonts into the browser
         for (const font of fonts) {
           try {
-            const fontFace = new FontFace(font.id, font.data);
+            // Create a Blob from ArrayBuffer and generate URL
+            const blob = new Blob([font.data], { type: 'font/ttf' });
+            const fontUrl = URL.createObjectURL(blob);
+            const fontFace = new FontFace(font.id, `url(${fontUrl})`);
             await fontFace.load();
             document.fonts.add(fontFace);
+            // Clean up the URL after loading
+            URL.revokeObjectURL(fontUrl);
           } catch (err) {
             console.error(`Failed to load cached font ${font.name}:`, err);
           }
@@ -273,9 +278,14 @@ export default function Home() {
       // Load all fonts into the browser
       for (const font of fonts) {
         try {
-          const fontFace = new FontFace(font.id, font.data);
+          // Create a Blob from ArrayBuffer and generate URL
+          const blob = new Blob([font.data], { type: 'font/ttf' });
+          const fontUrl = URL.createObjectURL(blob);
+          const fontFace = new FontFace(font.id, `url(${fontUrl})`);
           await fontFace.load();
           document.fonts.add(fontFace);
+          // Clean up the URL after loading
+          URL.revokeObjectURL(fontUrl);
         } catch (err) {
           console.error(`Failed to load cached font ${font.name}:`, err);
         }
@@ -291,11 +301,16 @@ export default function Home() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
+      // Create a Blob from ArrayBuffer and generate URL
+      const blob = new Blob([arrayBuffer], { type: 'font/ttf' });
+      const fontUrl = URL.createObjectURL(blob);
       const fontName = `CustomFont_${Date.now()}`;
-      const fontFace = new FontFace(fontName, arrayBuffer);
+      const fontFace = new FontFace(fontName, `url(${fontUrl})`);
       
       await fontFace.load();
       document.fonts.add(fontFace);
+      // Clean up the URL after loading
+      URL.revokeObjectURL(fontUrl);
       
       // Save font to IndexedDB
       const fontId = await saveFont(file.name, arrayBuffer);
