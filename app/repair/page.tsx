@@ -39,7 +39,13 @@ export default function FontRepairPage() {
     document.body.appendChild(script);
     
     return () => {
-      document.body.removeChild(script);
+      try {
+        if (script.parentNode) {
+          document.body.removeChild(script);
+        }
+      } catch (e) {
+        // Script already removed, ignore
+      }
     };
   }, []);
 
@@ -52,7 +58,8 @@ export default function FontRepairPage() {
       return;
     }
 
-    setOriginalName(file.name.split('.')[0]);
+    const lastDotIndex = file.name.lastIndexOf('.');
+    setOriginalName(lastDotIndex > 0 ? file.name.substring(0, lastDotIndex) : file.name);
     setFileName(file.name);
     setStatus('processing');
     setStatusMessage('正在解析并修复字体...');
