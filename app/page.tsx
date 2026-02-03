@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { 
   Type, 
   Upload, 
@@ -11,6 +12,7 @@ import {
   BookOpen, 
   PenTool,
   Trash2,
+  Wrench,
 } from 'lucide-react';
 
 // --- Default Data & Constants ---
@@ -190,7 +192,12 @@ export default function Home() {
       setCustomFontName(fontName);
       setConfig(prev => ({ ...prev, fontFamily: fontName }));
     } catch (err) {
-      alert('字体加载失败，请确保是有效的 TTF/OTF 文件');
+      const userResponse = confirm(
+        '字体加载失败，可能是字体文件损坏或格式不兼容。\n\n是否前往字体修复工具尝试修复？'
+      );
+      if (userResponse) {
+        window.location.href = '/repair';
+      }
       console.error(err);
     }
   };
@@ -344,6 +351,13 @@ export default function Home() {
               accept=".ttf,.otf"
               className="hidden" 
             />
+            
+            <Link 
+              href="/repair"
+              className="w-full py-2 border border-slate-300 rounded-lg text-xs text-slate-600 hover:text-red-500 hover:border-red-500 transition-colors flex items-center justify-center gap-2"
+            >
+              <Wrench className="w-3 h-3" /> 字体加载失败？试试修复工具
+            </Link>
           </div>
 
           {/* Grid Settings */}
