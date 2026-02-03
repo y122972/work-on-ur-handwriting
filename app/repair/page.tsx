@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, Download, AlertCircle, CheckCircle2, FileText, Wrench, Home } from 'lucide-react';
+import { Download, AlertCircle, CheckCircle2, FileText, Wrench, Home } from 'lucide-react';
 import Link from 'next/link';
 
 // OpenType.js will be loaded from CDN
@@ -43,7 +43,7 @@ export default function FontRepairPage() {
         if (script.parentNode) {
           document.body.removeChild(script);
         }
-      } catch (e) {
+      } catch {
         // Script already removed, ignore
       }
     };
@@ -131,7 +131,7 @@ export default function FontRepairPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">字体文件修复器</h1>
           </div>
           <p className="text-sm text-slate-500">
-            解决浏览器 "Failed to decode" 或 "OTS parsing error" 报错
+            解决浏览器 &ldquo;Failed to decode&rdquo; 或 &ldquo;OTS parsing error&rdquo; 报错
           </p>
           <Link 
             href="/"

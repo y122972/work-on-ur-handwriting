@@ -130,56 +130,90 @@ const CharBox = ({ char, config }: { char: string; config: CharBoxConfig }) => {
 
 export default function Home() {
   // --- State ---
-  const [content, setContent] = useState(POEMS[0].content);
+  // Initialize content from localStorage
+  const [content, setContent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      return savedConfig?.content ?? POEMS[0].content;
+    }
+    return POEMS[0].content;
+  });
+  
   const [activeTab, setActiveTab] = useState<'library' | 'input' | 'settings'>('library');
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [config, setConfig] = useState<CharBoxConfig>({
-    size: 100,
-    gridType: GRIDS.MI_ZI,
-    gridColor: '#ef4444', // red-500
-    fontFamily: WEB_FONTS[0].value, // Default to system KaiTi (always available)
-    textColor: '#000000',
-    textOpacity: 0.8, // 1 for black, 0.2 for tracing
+  // Initialize config from localStorage
+  const [config, setConfig] = useState<CharBoxConfig>(() => {
+    const defaults = {
+      size: 100,
+      gridType: GRIDS.MI_ZI,
+      gridColor: '#ef4444',
+      fontFamily: WEB_FONTS[0].value,
+      textColor: '#000000',
+      textOpacity: 0.8,
+    };
+    
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      if (savedConfig) {
+        return {
+          size: savedConfig.size ?? defaults.size,
+          gridType: savedConfig.gridType ?? defaults.gridType,
+          gridColor: savedConfig.gridColor ?? defaults.gridColor,
+          fontFamily: savedConfig.fontFamily ?? defaults.fontFamily,
+          textColor: savedConfig.textColor ?? defaults.textColor,
+          textOpacity: savedConfig.textOpacity ?? defaults.textOpacity,
+        };
+      }
+    }
+    return defaults;
   });
 
-  const [customFontName, setCustomFontName] = useState<string | null>(null);
-  const [customFontId, setCustomFontId] = useState<string | null>(null);
+  const [customFontId, setCustomFontId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedConfig = loadConfig();
+      return savedConfig?.customFontId ?? null;
+    }
+    return null;
+  });
+  
   const [cachedFonts, setCachedFonts] = useState<CachedFont[]>([]);
-  const [loadingFonts, setLoadingFonts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Effects ---
   
-  // Load cached configuration and fonts on mount
+  // Load cached fonts from IndexedDB on mount
   useEffect(() => {
-    // Load cached configuration
-    const savedConfig = loadConfig();
-    if (savedConfig) {
-      if (savedConfig.content !== undefined) setContent(savedConfig.content);
-      if (savedConfig.size !== undefined) {
-        setConfig(prev => ({ ...prev, size: savedConfig.size! }));
-      }
-      if (savedConfig.gridType !== undefined) {
-        setConfig(prev => ({ ...prev, gridType: savedConfig.gridType! }));
-      }
-      if (savedConfig.gridColor !== undefined) {
-        setConfig(prev => ({ ...prev, gridColor: savedConfig.gridColor! }));
-      }
-      if (savedConfig.textColor !== undefined) {
-        setConfig(prev => ({ ...prev, textColor: savedConfig.textColor! }));
-      }
-      if (savedConfig.textOpacity !== undefined) {
-        setConfig(prev => ({ ...prev, textOpacity: savedConfig.textOpacity! }));
-      }
-      // Font family will be set after loading cached fonts
-      if (savedConfig.customFontId) {
-        setCustomFontId(savedConfig.customFontId);
-      }
-    }
+    const loadFonts = async () => {
+      try {
+        const fonts = await getAllFonts();
+        setCachedFonts(fonts);
 
-    // Load cached fonts from IndexedDB
-    loadCachedFonts();
+        // Load all fonts into the browser
+        for (const font of fonts) {
+          try {
+            const fontFace = new FontFace(font.id, font.data);
+            await fontFace.load();
+            document.fonts.add(fontFace);
+          } catch (err) {
+            console.error(`Failed to load cached font ${font.name}:`, err);
+          }
+        }
+
+        // Restore previously selected custom font
+        const savedConfig = loadConfig();
+        if (savedConfig?.customFontId) {
+          const selectedFont = fonts.find(f => f.id === savedConfig.customFontId);
+          if (selectedFont) {
+            setConfig(prev => ({ ...prev, fontFamily: selectedFont.id }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load cached fonts:', error);
+      }
+    };
+    
+    loadFonts();
   }, []);
 
   // Save configuration to localStorage whenever it changes
@@ -196,44 +230,6 @@ export default function Home() {
     };
     saveConfig(configToSave);
   }, [content, config, customFontId]);
-
-  // Load cached fonts and apply them
-  const loadCachedFonts = async () => {
-    setLoadingFonts(true);
-    try {
-      const fonts = await getAllFonts();
-      setCachedFonts(fonts);
-
-      // Load all fonts into the browser
-      for (const font of fonts) {
-        try {
-          const fontFace = new FontFace(font.id, font.data);
-          await fontFace.load();
-          document.fonts.add(fontFace);
-        } catch (err) {
-          console.error(`Failed to load cached font ${font.name}:`, err);
-        }
-      }
-
-      // Restore previously selected custom font
-      const savedConfig = loadConfig();
-      if (savedConfig?.customFontId) {
-        const selectedFont = fonts.find(f => f.id === savedConfig.customFontId);
-        if (selectedFont) {
-          setCustomFontName(selectedFont.name);
-          setCustomFontId(selectedFont.id);
-          setConfig(prev => ({ ...prev, fontFamily: selectedFont.id }));
-        }
-      } else if (savedConfig?.fontFamily) {
-        // Restore web font selection
-        setConfig(prev => ({ ...prev, fontFamily: savedConfig.fontFamily! }));
-      }
-    } catch (error) {
-      console.error('Failed to load cached fonts:', error);
-    } finally {
-      setLoadingFonts(false);
-    }
-  };
   
   // Load Web Fonts - Fixed version with better fallback handling
   useEffect(() => {
@@ -268,6 +264,27 @@ export default function Home() {
 
   // --- Handlers ---
 
+  // Helper function to reload cached fonts
+  const loadCachedFonts = async () => {
+    try {
+      const fonts = await getAllFonts();
+      setCachedFonts(fonts);
+
+      // Load all fonts into the browser
+      for (const font of fonts) {
+        try {
+          const fontFace = new FontFace(font.id, font.data);
+          await fontFace.load();
+          document.fonts.add(fontFace);
+        } catch (err) {
+          console.error(`Failed to load cached font ${font.name}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load cached fonts:', error);
+    }
+  };
+
   const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -283,7 +300,6 @@ export default function Home() {
       // Save font to IndexedDB
       const fontId = await saveFont(file.name, arrayBuffer);
       
-      setCustomFontName(file.name);
       setCustomFontId(fontId);
       setConfig(prev => ({ ...prev, fontFamily: fontId }));
       
@@ -306,7 +322,6 @@ export default function Home() {
       
       // If the deleted font is currently selected, switch to default font
       if (customFontId === fontId) {
-        setCustomFontName(null);
         setCustomFontId(null);
         setConfig(prev => ({ ...prev, fontFamily: WEB_FONTS[0].value }));
       }
@@ -453,10 +468,8 @@ export default function Home() {
                 // Update custom font tracking
                 const selectedCachedFont = cachedFonts.find(f => f.id === value);
                 if (selectedCachedFont) {
-                  setCustomFontName(selectedCachedFont.name);
                   setCustomFontId(selectedCachedFont.id);
                 } else {
-                  setCustomFontName(null);
                   setCustomFontId(null);
                 }
               }}
