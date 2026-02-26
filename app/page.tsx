@@ -17,7 +17,7 @@ import {
   Database,
 } from 'lucide-react';
 import { saveFont, getAllFonts, deleteFont, CachedFont } from './lib/fontStorage';
-import { saveConfig, loadConfig, PageConfig } from './lib/configStorage';
+import { saveConfig, loadConfig, PageConfig, saveCustomContent, getAllCustomContents, deleteCustomContent, CustomContent } from './lib/configStorage';
 
 // --- Default Data & Constants ---
 
@@ -179,6 +179,13 @@ export default function Home() {
   
   const [cachedFonts, setCachedFonts] = useState<CachedFont[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customTitle, setCustomTitle] = useState('');
+  const [savedCustomContents, setSavedCustomContents] = useState<CustomContent[]>(() => {
+    if (typeof window !== 'undefined') {
+      return getAllCustomContents();
+    }
+    return [];
+  });
 
   // --- Effects ---
   
@@ -422,6 +429,40 @@ export default function Home() {
               </div>
             </div>
 
+            {savedCustomContents.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">我的收藏</h3>
+                <div className="space-y-2">
+                  {savedCustomContents.map((item) => (
+                    <div
+                      key={item.id}
+                      className="w-full text-left p-3 bg-white border border-slate-200 rounded-lg hover:border-red-500 transition-all group flex items-start gap-2"
+                    >
+                      <button
+                        className="flex-1 text-left"
+                        onClick={() => setContent(item.content)}
+                      >
+                        <div className="font-medium text-slate-800 group-hover:text-red-600 text-sm mb-1">{item.title}</div>
+                        <p className="text-xs text-slate-400 truncate">{item.content}</p>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`确定要删除"${item.title}"吗？`)) {
+                            deleteCustomContent(item.id);
+                            setSavedCustomContents(getAllCustomContents());
+                          }
+                        }}
+                        className="text-slate-300 hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
+                        title="删除"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">经典诗词</h3>
               <div className="space-y-2">
@@ -457,6 +498,28 @@ export default function Home() {
               className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-slate-700"
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">标题</label>
+            <input
+              type="text"
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              placeholder="输入标题..."
+              className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none text-slate-700 text-sm"
+            />
+          </div>
+          <button
+            onClick={() => {
+              if (!content.trim()) return;
+              const title = customTitle.trim() || '自定义内容';
+              saveCustomContent(title, content);
+              setSavedCustomContents(getAllCustomContents());
+              setCustomTitle('');
+            }}
+            className="flex items-center justify-center gap-2 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
+          >
+            保存到内容库
+          </button>
           <button 
             onClick={() => setContent('')}
             className="flex items-center justify-center gap-2 text-red-500 hover:bg-red-50 py-2 rounded-lg transition-colors text-sm"
