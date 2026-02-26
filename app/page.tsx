@@ -439,11 +439,11 @@ export default function Home() {
                       className="w-full text-left p-3 bg-white border border-slate-200 rounded-lg hover:border-red-500 transition-all group flex items-start gap-2"
                     >
                       <button
-                        className="flex-1 text-left"
+                        className="flex-1 text-left min-w-0"
                         onClick={() => setContent(item.content)}
                       >
-                        <div className="font-medium text-slate-800 group-hover:text-red-600 text-sm mb-1">{item.title}</div>
-                        <p className="text-xs text-slate-400 truncate">{item.content}</p>
+                        <div className="font-medium text-slate-800 group-hover:text-red-600 text-sm mb-1 truncate break-all">{item.title}</div>
+                        <p className="text-xs text-slate-400 truncate break-all">{item.content}</p>
                       </button>
                       <button
                         onClick={() => {
