@@ -2,6 +2,8 @@
 
 一个基于 Next.js 的中文练字 Web 应用，帮助你在浏览器中生成字帖、练习书写。
 
+![应用截图](https://github.com/user-attachments/assets/ad9dc688-efe9-4ec7-b59d-025d28897299)
+
 ## 功能
 
 - **字帖生成** — 支持田字格、米字格、回宫格及空白四种格式
