@@ -15,6 +15,8 @@ import {
   Wrench,
   X,
   Database,
+  Menu,
+  ChevronLeft,
 } from 'lucide-react';
 import { saveFont, getAllFonts, deleteFont, CachedFont } from './lib/fontStorage';
 import { saveConfig, loadConfig, PageConfig, saveCustomContent, getAllCustomContents, deleteCustomContent, CustomContent } from './lib/configStorage';
@@ -187,8 +189,17 @@ export default function Home() {
     return [];
   });
 
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   // --- Effects ---
-  
+
+  // Close sidebar by default on mobile after mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
   // Load cached fonts from IndexedDB on mount
   useEffect(() => {
     const loadFonts = async () => {
@@ -371,10 +382,29 @@ export default function Home() {
   // --- Render Sections ---
 
   const renderSidebar = () => (
-    <div className="w-full md:w-80 bg-slate-50 border-r border-slate-200 h-screen overflow-y-auto p-4 flex flex-col gap-6 print:hidden shadow-lg z-20">
-      <div className="flex items-center gap-2 mb-2 text-slate-800">
-        <PenTool className="w-6 h-6 text-red-600" />
-        <h1 className="text-xl font-bold font-serif tracking-widest">云端字帖</h1>
+    <>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-30 md:hidden print:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`print:hidden fixed inset-y-0 left-0 z-40 w-80 bg-slate-50 border-r border-slate-200 h-screen overflow-y-auto p-4 flex flex-col gap-6 shadow-lg transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="flex items-center justify-between mb-2 text-slate-800">
+        <div className="flex items-center gap-2">
+          <PenTool className="w-6 h-6 text-red-600" />
+          <h1 className="text-xl font-bold font-serif tracking-widest">云端字帖</h1>
+        </div>
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+          title="收起侧边栏"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Tabs */}
@@ -719,6 +749,7 @@ export default function Home() {
          <p className="text-xs text-center text-slate-400 mt-2">建议使用 A4 纸张横向打印</p>
       </div>
     </div>
+    </>
   );
 
   return (
@@ -727,13 +758,23 @@ export default function Home() {
       {renderSidebar()}
 
       {/* Main Preview Area */}
-      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden p-8 print:p-0 print:m-0 print:overflow-visible">
+      <div className={`flex-1 h-full overflow-y-auto overflow-x-hidden p-8 print:p-0 print:m-0 print:overflow-visible transition-[margin] duration-300 ease-in-out ${sidebarOpen ? 'md:ml-80' : 'md:ml-0'}`}>
+        {/* Floating toggle button when sidebar is closed */}
+        {!sidebarOpen && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="fixed top-4 left-4 z-50 p-2 bg-white shadow-md rounded-lg text-slate-700 hover:bg-slate-50 transition-colors print:hidden"
+            title="展开侧边栏"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
         {/* Paper Container */}
         <div className="max-w-6xl mx-auto print:max-w-none print:w-full print:mx-0">
           
           {/* Header visible on screen only */}
           <div className="mb-6 flex items-center justify-between print:hidden">
-            <h2 className="text-2xl font-bold text-slate-800">预览区域</h2>
+            <h2 className={`text-2xl font-bold text-slate-800 ${!sidebarOpen ? 'ml-10' : ''}`}>预览区域</h2>
             <div className="flex gap-2 text-sm text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm">
                <span>共 {chars.length} 字</span>
                <span>•</span>
