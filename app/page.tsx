@@ -19,6 +19,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { saveFont, getAllFonts, deleteFont, CachedFont } from './lib/fontStorage';
+import { PublicFont } from './api/fonts/route';
 import { saveConfig, loadConfig, PageConfig, saveCustomContent, getAllCustomContents, deleteCustomContent, CustomContent } from './lib/configStorage';
 
 // --- Default Data & Constants ---
@@ -180,6 +181,7 @@ export default function Home() {
   });
   
   const [cachedFonts, setCachedFonts] = useState<CachedFont[]>([]);
+  const [publicFonts, setPublicFonts] = useState<PublicFont[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [customTitle, setCustomTitle] = useState('');
   const [savedCustomContents, setSavedCustomContents] = useState<CustomContent[]>(() => {
@@ -237,6 +239,33 @@ export default function Home() {
     };
     
     loadFonts();
+  }, []);
+
+  // Load public fonts from the API and register them with FontFace
+  useEffect(() => {
+    const loadPublicFonts = async () => {
+      try {
+        const res = await fetch('/api/fonts');
+        const fonts: PublicFont[] = await res.json();
+        setPublicFonts(fonts);
+
+        const validFontPath = /^\/[^/].*\.(ttf|otf|woff|woff2)$/i;
+        for (const font of fonts) {
+          if (!validFontPath.test(font.path)) continue;
+          try {
+            const fontFace = new FontFace(font.name, `url(${font.path})`);
+            await fontFace.load();
+            document.fonts.add(fontFace);
+          } catch (err) {
+            console.error(`Failed to load public font ${font.name}:`, err);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch public fonts:', error);
+      }
+    };
+
+    loadPublicFonts();
   }, []);
 
   // Save configuration to localStorage whenever it changes
@@ -586,6 +615,13 @@ export default function Home() {
               {WEB_FONTS.map((font, idx) => (
                 <option key={idx} value={font.value}>{font.name}</option>
               ))}
+              {publicFonts.length > 0 && (
+                <optgroup label="内置字体">
+                  {publicFonts.map((font) => (
+                    <option key={font.path} value={font.name}>{font.name}</option>
+                  ))}
+                </optgroup>
+              )}
               {cachedFonts.length > 0 && (
                 <optgroup label="本地缓存字体">
                   {cachedFonts.map((font) => (
